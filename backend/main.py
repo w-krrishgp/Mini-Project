@@ -110,6 +110,30 @@ class ReviewResponse(BaseModel):
     is_demo_mode: bool = False
     warning_message: Optional[str] = None
 
+class TestCaseItem(BaseModel):
+    id: str = Field(description="Unique identifier, e.g. test-1")
+    category: str = Field(description="'normal' | 'edge_case' | 'boundary' | 'performance'")
+    title: str = Field(description="Descriptive title of what this case tests")
+    input: str = Field(description="Formatted input parameters or stdin")
+    expected_output: str = Field(description="Expected return value or stdout")
+    explanation: str = Field(description="Why this case is important or how it traps naive code")
+    difficulty: str = Field(default="tricky", description="'basic' | 'tricky' | 'extreme'")
+
+class TestCaseRequest(BaseModel):
+    code: str
+    language: str
+    problem_context: Optional[str] = ""
+    api_key: Optional[str] = None
+
+class TestCaseResponse(BaseModel):
+    success: bool = True
+    total_cases: int
+    test_cases: List[TestCaseItem] = []
+    summary: str
+    model_used: str
+    is_demo_mode: bool = False
+    warning_message: Optional[str] = None
+
 
 def generate_heuristic_review(code: str, language: str, problem_context: Optional[str] = None) -> ReviewResponse:
     """
@@ -423,3 +447,305 @@ Respond ONLY with valid JSON. No markdown backticks outside the JSON string if p
         )
         fallback.warning_message = f"Gemini API request note ({error_str[:120]}). Displaying local analysis fallback."
         return fallback
+
+
+def generate_heuristic_testcases(code: str, language: str, problem_context: Optional[str] = None) -> TestCaseResponse:
+    """
+    Intelligent test case and edge case heuristic generator.
+    """
+    code_lower = code.lower()
+    cases: List[TestCaseItem] = []
+
+    if "binarysearch" in code_lower or "binary_search" in code_lower or ("low" in code_lower and "high" in code_lower and "mid" in code_lower):
+        cases = [
+            TestCaseItem(
+                id="tc-1",
+                category="normal",
+                title="Standard Search (Element in Middle)",
+                input="arr = [2, 5, 8, 12, 16, 23, 38]\ntarget = 12",
+                expected_output="3",
+                explanation="Validates standard logarithmic traversal where target is found in middle partition.",
+                difficulty="basic"
+            ),
+            TestCaseItem(
+                id="tc-2",
+                category="edge_case",
+                title="Target Not Present in Array",
+                input="arr = [1, 3, 5, 7, 9]\ntarget = 4",
+                expected_output="-1",
+                explanation="Ensures loop terminates cleanly when left pointer crosses right pointer without infinite looping.",
+                difficulty="basic"
+            ),
+            TestCaseItem(
+                id="tc-3",
+                category="boundary",
+                title="Empty Array (N = 0)",
+                input="arr = []\ntarget = 5",
+                expected_output="-1",
+                explanation="Guards against out-of-bounds indexing (e.g. arr.size() - 1 underflowing or unsigned wrapping).",
+                difficulty="tricky"
+            ),
+            TestCaseItem(
+                id="tc-4",
+                category="boundary",
+                title="Single Element Array (Match & Mismatch)",
+                input="arr = [42]\ntarget = 42",
+                expected_output="0",
+                explanation="Tests boundary condition (low <= high vs low < high) where a single element array must still be checked.",
+                difficulty="tricky"
+            ),
+            TestCaseItem(
+                id="tc-5",
+                category="edge_case",
+                title="Integer Overflow Boundary Near INT_MAX",
+                input="arr = [0, 1000000000, 2000000000]\ntarget = 2000000000",
+                expected_output="2",
+                explanation="Tests whether (low + high) overflows 32-bit signed integer (2^31 - 1). Catches naive midpoint formula.",
+                difficulty="extreme"
+            ),
+            TestCaseItem(
+                id="tc-6",
+                category="performance",
+                title="Large Scale Stress Test (N = 100,000)",
+                input="arr = [1, 2, 3, ... 100000]\ntarget = 99999",
+                expected_output="99998",
+                explanation="Ensures algorithmic complexity O(log N) executes within ~17 iterations without Time Limit Exceeded.",
+                difficulty="tricky"
+            )
+        ]
+        summary = "Generated 6 critical test cases for Binary Search covering midpoint overflow, empty arrays, and scale limits."
+    elif "twosum" in code_lower or "two_sum" in code_lower or ("target" in code_lower and ("sum" in code_lower or "pair" in code_lower)):
+        cases = [
+            TestCaseItem(
+                id="tc-1",
+                category="normal",
+                title="Standard Positive Pair",
+                input="nums = [2, 7, 11, 15]\ntarget = 9",
+                expected_output="[0, 1]",
+                explanation="Baseline test case ensuring complementary pair indices are returned correctly.",
+                difficulty="basic"
+            ),
+            TestCaseItem(
+                id="tc-2",
+                category="edge_case",
+                title="Negative Numbers Summing to Zero",
+                input="nums = [-5, -2, 0, 2, 5]\ntarget = 0",
+                expected_output="[0, 4]",
+                explanation="Validates signed arithmetic logic when complements involve negative integers.",
+                difficulty="tricky"
+            ),
+            TestCaseItem(
+                id="tc-3",
+                category="boundary",
+                title="Duplicate Elements Forming Target",
+                input="nums = [3, 3]\ntarget = 6",
+                expected_output="[0, 1]",
+                explanation="Tests hash map duplicate collision handling without reusing the same array index.",
+                difficulty="tricky"
+            ),
+            TestCaseItem(
+                id="tc-4",
+                category="edge_case",
+                title="No Valid Pair Exists",
+                input="nums = [1, 2, 3, 4]\ntarget = 100",
+                expected_output="[]",
+                explanation="Guarantees safe termination and fallback return when no complementary pair sums to target.",
+                difficulty="basic"
+            ),
+            TestCaseItem(
+                id="tc-5",
+                category="performance",
+                title="Scale Test to Trap O(N^2) TLE (N = 50,000)",
+                input="nums = [1, 2, 3, ... 50000]\ntarget = 99999",
+                expected_output="[49998, 49999]",
+                explanation="Stress-tests algorithm efficiency. O(N^2) brute force causes timeout (TLE); O(N) hash map completes in milliseconds.",
+                difficulty="extreme"
+            )
+        ]
+        summary = "Generated 5 comprehensive test cases for Two Sum covering duplicate values, negative integers, and scale limits."
+    else:
+        cases = [
+            TestCaseItem(
+                id="tc-1",
+                category="normal",
+                title="Standard Typical Input",
+                input=f"// Example standard input for {language}\nSample input data",
+                expected_output="Expected standard return",
+                explanation="Happy-path test case verifying normal execution flow and valid return types.",
+                difficulty="basic"
+            ),
+            TestCaseItem(
+                id="tc-2",
+                category="boundary",
+                title="Minimum / Empty Input Constraints",
+                input="Empty collection / 0 / null",
+                expected_output="Base case output",
+                explanation="Verifies guard conditions and prevents NullPointerException, segmentation faults, or undefined indexing.",
+                difficulty="tricky"
+            ),
+            TestCaseItem(
+                id="tc-3",
+                category="edge_case",
+                title="Extreme Boundary & Negative Values",
+                input="Min/max data limits (e.g. INT_MIN, INT_MAX, negative values)",
+                expected_output="Calculated boundary output",
+                explanation="Exposes integer overflow, underflow, and sign handling anomalies.",
+                difficulty="extreme"
+            ),
+            TestCaseItem(
+                id="tc-4",
+                category="performance",
+                title="High-Volume Scale Test (Max Constraints)",
+                input="Collection with maximum constraint size (e.g., N = 10^5)",
+                expected_output="Execution within 1.0s limit",
+                explanation="Stress tests memory consumption and confirms optimal time complexity under competitive programming constraints.",
+                difficulty="tricky"
+            )
+        ]
+        summary = f"Generated {len(cases)} test cases covering edge cases, boundary values, and scale limits for {language.upper()} code."
+
+    return TestCaseResponse(
+        success=True,
+        total_cases=len(cases),
+        test_cases=cases,
+        summary=summary,
+        model_used="DSA Heuristics Engine (Local Demo)",
+        is_demo_mode=True,
+        warning_message="Running in Demo Mode. Provide GEMINI_API_KEY in backend/.env or in Settings for live Gemini 3.8 Flash test generation."
+    )
+
+
+@app.post("/api/testcases", response_model=TestCaseResponse)
+async def generate_test_cases(
+    request: TestCaseRequest,
+    x_gemini_api_key: Optional[str] = Header(None, alias="X-Gemini-API-Key")
+):
+    """
+    Generates tailored test cases, tricky inputs, and edge cases using Google Gemini (gemini-3.8-flash).
+    Falls back to smart local heuristics if no API key is provided or during demo testing.
+    """
+    if not request.code or not request.code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Code snippet cannot be empty."
+        )
+
+    # Resolve active API key
+    active_key = (
+        request.api_key
+        or x_gemini_api_key
+        or os.getenv("GEMINI_API_KEY")
+    )
+
+    is_dummy_key = not active_key or active_key.strip() in (
+        "",
+        "your_gemini_api_key_here",
+        "your_api_key_here",
+        "placeholder"
+    )
+
+    if is_dummy_key:
+        return generate_heuristic_testcases(
+            code=request.code,
+            language=request.language,
+            problem_context=request.problem_context
+        )
+
+    # Call Google Gemini API
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=active_key.strip())
+
+        system_instruction = (
+            "You are a World-Class Competitive Programming Problem Setter and Senior QA Engineer. "
+            "Given code and optional problem context, design 5 to 7 high-impact test cases covering: "
+            "1. Standard nominal input. "
+            "2. Minimum boundary (empty, 0, 1 element). "
+            "3. Extreme values (large integers, negative numbers, overflow boundaries). "
+            "4. Duplicates / collisions. "
+            "5. Stress / worst-case scale tests that trap sub-optimal algorithms."
+        )
+
+        prompt = f"""Generate comprehensive test cases and edge cases for the following {request.language} solution.
+Problem Context / Constraints (if provided):
+{request.problem_context or "None provided"}
+
+Code:
+```{request.language}
+{request.code}
+```
+
+Provide your response in valid JSON matching this exact schema:
+{{
+  "summary": "1-2 sentence overview of the test suite and edge cases covered",
+  "test_cases": [
+    {{
+      "id": "tc-1",
+      "category": "normal" | "edge_case" | "boundary" | "performance",
+      "title": "Clear descriptive title of this test case",
+      "input": "Exact input representation (e.g. nums = [2, 7, 11, 15], target = 9)",
+      "expected_output": "Exact expected return or output",
+      "explanation": "Why this test case is tricky or what specific bug/edge case it checks",
+      "difficulty": "basic" | "tricky" | "extreme"
+    }}
+  ]
+}}
+
+Respond ONLY with valid JSON.
+"""
+
+        model_name = "gemini-3.8-flash"
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                temperature=0.2,
+            )
+        )
+
+        response_text = response.text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+
+        data = json.loads(response_text)
+        cases_list = []
+        for idx, item in enumerate(data.get("test_cases", []), 1):
+            cases_list.append(TestCaseItem(
+                id=item.get("id", f"tc-{idx}"),
+                category=item.get("category", "edge_case"),
+                title=item.get("title", f"Test Case #{idx}"),
+                input=item.get("input", ""),
+                expected_output=item.get("expected_output", ""),
+                explanation=item.get("explanation", ""),
+                difficulty=item.get("difficulty", "tricky")
+            ))
+
+        return TestCaseResponse(
+            success=True,
+            total_cases=len(cases_list),
+            test_cases=cases_list,
+            summary=data.get("summary", f"Generated {len(cases_list)} comprehensive test cases."),
+            model_used=model_name,
+            is_demo_mode=False
+        )
+
+    except Exception as e:
+        error_str = str(e)
+        print(f"Gemini test case generation error: {error_str}")
+        fallback = generate_heuristic_testcases(
+            code=request.code,
+            language=request.language,
+            problem_context=request.problem_context
+        )
+        fallback.warning_message = f"Gemini API request note ({error_str[:120]}). Displaying local test cases fallback."
+        return fallback
+

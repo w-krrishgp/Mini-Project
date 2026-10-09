@@ -4,7 +4,7 @@ import CodeEditor from './components/CodeEditor';
 import DiffViewer from './components/DiffViewer';
 import SidePanel from './components/SidePanel';
 import { SUPPORTED_LANGUAGES } from './constants/languages';
-import { requestAiReview, checkBackendHealth } from './api/reviewService';
+import { requestAiReview, requestTestCases, checkBackendHealth } from './api/reviewService';
 import { AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
 import './App.css';
 
@@ -19,6 +19,8 @@ function App() {
   // AI Review States
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewResult, setReviewResult] = useState(null);
+  const [testCasesData, setTestCasesData] = useState(null);
+  const [isGeneratingTestCases, setIsGeneratingTestCases] = useState(false);
   const [activeSideTab, setActiveSideTab] = useState('overview');
   const [editorMode, setEditorMode] = useState('editor'); // 'editor' | 'diff'
   const [problemDescription, setProblemDescription] = useState('');
@@ -149,6 +151,44 @@ function App() {
     }
   };
 
+  const handleGenerateTestCases = async () => {
+    if (!code.trim()) {
+      showToast('Please paste or write some code first!', 'warning');
+      return;
+    }
+
+    setIsGeneratingTestCases(true);
+    setActiveSideTab('testcases');
+
+    try {
+      const data = await requestTestCases({
+        code,
+        language: selectedLanguage,
+        problemContext: problemDescription,
+        apiKey: apiKey
+      });
+
+      setTestCasesData(data);
+      setBackendStatus('online');
+
+      if (data.is_demo_mode) {
+        showToast(`Generated ${data.total_cases} test cases (Demo Mode)`, 'info');
+      } else {
+        showToast(`Generated ${data.total_cases} edge & test cases via Gemini!`, 'success');
+      }
+    } catch (err) {
+      console.error('Test case generation failed:', err);
+      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        showToast('Backend offline. Start the backend server on port 8000.', 'warning');
+        setBackendStatus('offline');
+      } else {
+        showToast(`Test case error: ${err.message}`, 'warning');
+      }
+    } finally {
+      setIsGeneratingTestCases(false);
+    }
+  };
+
   // Find active language metadata
   const currentLangObj =
     SUPPORTED_LANGUAGES.find((l) => l.id === selectedLanguage) ||
@@ -231,6 +271,9 @@ function App() {
             onChangeProblemDescription={setProblemDescription}
             onOpenSettings={() => setShowSettings(true)}
             onOpenDiff={handleOpenDiff}
+            testCasesData={testCasesData}
+            onGenerateTestCases={handleGenerateTestCases}
+            isGeneratingTestCases={isGeneratingTestCases}
           />
         </section>
       </main>

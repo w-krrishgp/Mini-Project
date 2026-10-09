@@ -44,5 +44,23 @@ class TestCodeReviewerAPI(unittest.TestCase):
         response = self.client.post("/api/review", json={"code": "   ", "language": "python"})
         self.assertEqual(response.status_code, 400)
 
+    def test_heuristic_test_cases(self):
+        payload = {
+            "code": "int binarySearch(vector<int>& arr, int target) { int low = 0, high = arr.size() - 1; while (low <= high) { int mid = (low + high) / 2; } return -1; }",
+            "language": "cpp",
+            "problem_context": "Binary search"
+        }
+        response = self.client.post("/api/testcases", json=payload)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get("success"))
+        self.assertGreaterEqual(data.get("total_cases", 0), 4)
+        self.assertIn("test_cases", data)
+        self.assertTrue(any(tc.get("category") == "edge_case" for tc in data["test_cases"]))
+
+    def test_testcases_empty_code_rejection(self):
+        response = self.client.post("/api/testcases", json={"code": "  ", "language": "cpp"})
+        self.assertEqual(response.status_code, 400)
+
 if __name__ == "__main__":
     unittest.main()

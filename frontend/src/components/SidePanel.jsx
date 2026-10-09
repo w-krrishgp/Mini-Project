@@ -7,9 +7,11 @@ import {
   CheckCircle, 
   ArrowRight, 
   BookOpen, 
-  Loader2
+  Loader2,
+  FlaskConical
 } from 'lucide-react';
 import ReviewResults from './ReviewResults';
+import TestCaseGenerator from './TestCaseGenerator';
 
 export default function SidePanel({
   selectedLanguage,
@@ -23,7 +25,10 @@ export default function SidePanel({
   problemDescription,
   onChangeProblemDescription,
   onOpenSettings,
-  onOpenDiff
+  onOpenDiff,
+  testCasesData,
+  onGenerateTestCases,
+  isGeneratingTestCases
 }) {
   const [internalTab, setInternalTab] = useState('overview');
   const activeTab = propActiveTab || internalTab;
@@ -91,6 +96,17 @@ export default function SidePanel({
           <span>AI Review</span>
           {reviewResult && (
             <span className="tab-score-badge">{reviewResult.score}</span>
+          )}
+        </button>
+
+        <button 
+          className={`panel-tab ${activeTab === 'testcases' ? 'active' : ''} ${testCasesData ? 'has-result' : ''}`}
+          onClick={() => setActiveTab('testcases')}
+        >
+          <FlaskConical size={15} className={testCasesData ? "text-accent" : ""} />
+          <span>Test Cases</span>
+          {testCasesData && (
+            <span className="tab-score-badge">{testCasesData.total_cases}</span>
           )}
         </button>
 
@@ -242,6 +258,18 @@ export default function SidePanel({
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Test Cases Tab */}
+        {activeTab === 'testcases' && (
+          <div className="testcase-tab-content">
+            <TestCaseGenerator
+              testCasesData={testCasesData}
+              onGenerateTestCases={onGenerateTestCases}
+              isGenerating={isGeneratingTestCases}
+              onOpenSettings={onOpenSettings}
+            />
           </div>
         )}
 
