@@ -2,7 +2,8 @@
 
 > An intelligent, web-based code reviewer and DSA mentor powered by Google Gemini 3.8 Flash, FastAPI, React 19, and Monaco Editor.
 
-![AI Code Reviewer](https://img.shields.io/badge/Gemini-3.8--Flash-blue?logo=google)
+[![CI Pipeline](https://github.com/w-krrishgp/Mini-Project/actions/workflows/ci.yml/badge.svg)](https://github.com/w-krrishgp/Mini-Project/actions/workflows/ci.yml)
+![Gemini](https://img.shields.io/badge/Gemini-3.8--Flash-blue?logo=google)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)
 ![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)
 ![Monaco Editor](https://img.shields.io/badge/Editor-Monaco-blueviolet)
