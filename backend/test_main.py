@@ -1,10 +1,20 @@
+import os
 import unittest
 from fastapi.testclient import TestClient
 import main
 
 class TestCodeReviewerAPI(unittest.TestCase):
     def setUp(self):
+        self.orig_key = os.environ.get("GEMINI_API_KEY")
+        # Ensure tests execute against offline heuristic engine for fast, consistent results
+        os.environ["GEMINI_API_KEY"] = ""
         self.client = TestClient(main.app)
+
+    def tearDown(self):
+        if self.orig_key is not None:
+            os.environ["GEMINI_API_KEY"] = self.orig_key
+        else:
+            os.environ.pop("GEMINI_API_KEY", None)
 
     def test_root_endpoint(self):
         response = self.client.get("/")

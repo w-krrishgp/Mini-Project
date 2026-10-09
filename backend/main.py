@@ -381,31 +381,38 @@ Provide your review in valid JSON format matching this exact schema:
 Respond ONLY with valid JSON. No markdown backticks outside the JSON string if possible.
 """
 
-        # Generate response using gemini-3.8-flash
-        model_name = "gemini-3.8-flash"
-        
-        # We use generate_content with JSON response mime type
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                temperature=0.2,
-            )
-        )
+        candidate_models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]
+        data = None
+        used_model = "gemini-flash-latest"
+        last_err = None
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        temperature=0.2,
+                    )
+                )
+                response_text = response.text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]
+                if response_text.startswith("```"):
+                    response_text = response_text[3:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+                response_text = response_text.strip()
+                data = json.loads(response_text)
+                used_model = model_name
+                break
+            except Exception as e:
+                last_err = e
+                continue
 
-        response_text = response.text.strip()
-        # Clean potential markdown wrapping if present
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
-
-        data = json.loads(response_text)
+        if data is None:
+            raise last_err or RuntimeError("No compatible Gemini model succeeded")
 
         # Map to ReviewResponse
         issues_list = []
@@ -432,7 +439,7 @@ Respond ONLY with valid JSON. No markdown backticks outside the JSON string if p
             explanation=data.get("explanation", ""),
             strengths=data.get("strengths", []),
             recommendations=data.get("recommendations", []),
-            model_used=model_name,
+            model_used=used_model,
             is_demo_mode=False
         )
 
@@ -696,27 +703,39 @@ Provide your response in valid JSON matching this exact schema:
 Respond ONLY with valid JSON.
 """
 
-        model_name = "gemini-3.8-flash"
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                temperature=0.2,
-            )
-        )
+        candidate_models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]
+        data = None
+        used_model = "gemini-flash-latest"
+        last_err = None
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        temperature=0.2,
+                    )
+                )
+                response_text = response.text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]
+                if response_text.startswith("```"):
+                    response_text = response_text[3:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+                response_text = response_text.strip()
+                data = json.loads(response_text)
+                used_model = model_name
+                break
+            except Exception as e:
+                last_err = e
+                continue
 
-        response_text = response.text.strip()
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
+        if data is None:
+            raise last_err or RuntimeError("No compatible Gemini model succeeded")
 
-        data = json.loads(response_text)
         cases_list = []
         for idx, item in enumerate(data.get("test_cases", []), 1):
             cases_list.append(TestCaseItem(
@@ -734,7 +753,7 @@ Respond ONLY with valid JSON.
             total_cases=len(cases_list),
             test_cases=cases_list,
             summary=data.get("summary", f"Generated {len(cases_list)} comprehensive test cases."),
-            model_used=model_name,
+            model_used=used_model,
             is_demo_mode=False
         )
 
