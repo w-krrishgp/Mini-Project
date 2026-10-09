@@ -72,5 +72,26 @@ class TestCodeReviewerAPI(unittest.TestCase):
         response = self.client.post("/api/testcases", json={"code": "  ", "language": "cpp"})
         self.assertEqual(response.status_code, 400)
 
+    def test_heuristic_chat_mentor(self):
+        payload = {
+            "messages": [
+                {"role": "user", "content": "How does binary search work in this code?"}
+            ],
+            "code": "int binarySearch(int arr[], int n, int target);",
+            "language": "cpp"
+        }
+        response = self.client.post("/api/chat", json=payload)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("reply", data)
+        self.assertIn("Binary Search", data.get("reply"))
+        self.assertTrue(data.get("is_demo_mode"))
+
+    def test_chat_empty_messages_rejection(self):
+        payload = {"messages": [], "code": "int x = 1;", "language": "cpp"}
+        response = self.client.post("/api/chat", json=payload)
+        self.assertEqual(response.status_code, 400)
+
 if __name__ == "__main__":
     unittest.main()

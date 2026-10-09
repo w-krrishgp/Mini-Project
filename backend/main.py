@@ -134,6 +134,25 @@ class TestCaseResponse(BaseModel):
     is_demo_mode: bool = False
     warning_message: Optional[str] = None
 
+class ChatMessage(BaseModel):
+    role: str = Field(description="'user' | 'assistant' | 'system'")
+    content: str = Field(description="Message body content")
+    timestamp: Optional[str] = None
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage] = []
+    code: str = ""
+    language: str = "cpp"
+    problem_context: Optional[str] = ""
+    api_key: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    success: bool = True
+    reply: str
+    model_used: str
+    is_demo_mode: bool = False
+    warning_message: Optional[str] = None
+
 
 def generate_heuristic_review(code: str, language: str, problem_context: Optional[str] = None) -> ReviewResponse:
     """
@@ -767,4 +786,185 @@ Respond ONLY with valid JSON.
         )
         fallback.warning_message = f"Gemini API request note ({error_str[:120]}). Displaying local test cases fallback."
         return fallback
+
+
+def generate_heuristic_chat(
+    messages: List[ChatMessage],
+    code: str,
+    language: str,
+    problem_context: Optional[str] = None
+) -> ChatResponse:
+    last_msg = messages[-1].content.lower() if messages else ""
+    code_lower = code.lower() if code else ""
+    lang_upper = language.upper()
+
+    if "explain" in last_msg or "how does" in last_msg or "what does" in last_msg or "step by step" in last_msg:
+        if "binary" in code_lower or "search" in code_lower:
+            reply = (
+                f"### 🔍 Algorithmic Walkthrough ({lang_upper})\n\n"
+                "Your code implements **Binary Search**, a divide-and-conquer algorithm with logarithmic time complexity $O(\\log N)$:\n\n"
+                "1. **Pointers**: `low` starts at index `0` and `high` at `N - 1`.\n"
+                "2. **Midpoint**: In each step, you calculate the midpoint `mid`.\n"
+                "3. **Partitioning**: If `arr[mid] == target`, you return immediately. If `arr[mid] < target`, the search window shifts right (`low = mid + 1`). Otherwise, it shifts left (`high = mid - 1`).\n\n"
+                "💡 **Key Tip**: Be sure your midpoint calculation uses `low + (high - low) / 2` to prevent 32-bit signed integer overflow on large arrays!"
+            )
+        elif "twosum" in code_lower or "two_sum" in code_lower or "pair" in code_lower:
+            reply = (
+                f"### 🔍 Algorithmic Walkthrough ({lang_upper})\n\n"
+                "Your code addresses the **Two Sum** problem:\n\n"
+                "- It searches for two indices where `nums[i] + nums[j] == target`.\n"
+                "- When using a hash table / map, the complement `target - nums[i]` is looked up in $O(1)$ amortized time per element, achieving overall **$O(N)$ time** and **$O(N)$ space**.\n"
+                "- If using nested loops, it compares every pair with $O(N^2)$ time complexity."
+            )
+        else:
+            reply = (
+                f"### 🔍 Code Structure Analysis ({lang_upper})\n\n"
+                f"Looking at your current {lang_upper} implementation in the editor:\n\n"
+                "- The routine accepts inputs and executes logical branches or loops.\n"
+                "- Verify collection lookups: check whether operations are $O(1)$ (hash table/set) or $O(N)$ (linear vector search).\n"
+                "- Feel free to ask about any specific line or algorithmic edge case!"
+            )
+    elif "optimize" in last_msg or "faster" in last_msg or "complexity" in last_msg or "speed" in last_msg:
+        reply = (
+            f"### ⚡ Optimization Strategies for {lang_upper}\n\n"
+            "To achieve optimal competitive programming performance:\n\n"
+            "1. **Lookups**: Replace inner loops or `find()` on sequential vectors with a hash map (`std::unordered_map` / `dict`) to reduce $O(N^2)$ to $O(N)$.\n"
+            "2. **Two Pointers**: If the array can be sorted, an $O(N \\log N)$ sort with two pointers often saves auxiliary memory ($O(1)$ space).\n"
+            "3. **I/O Overhead**: In C++, remember `ios_base::sync_with_stdio(false); cin.tie(NULL);` to avoid I/O bottlenecks under tight time constraints."
+        )
+    elif "edge case" in last_msg or "bug" in last_msg or "test" in last_msg:
+        reply = (
+            f"### 🐛 Critical Edge Cases to Guard Against:\n\n"
+            "1. **Empty / Null Input**: $N = 0$ array or empty collection.\n"
+            "2. **Single Element**: $N = 1$ when target is present or missing.\n"
+            "3. **Arithmetic Limits**: Values near `INT_MAX` ($2^{31}-1$) or negative numbers.\n"
+            "4. **Duplicate Elements**: Repeated values that might be picked twice if indices aren't strictly checked.\n"
+            "5. **Negative Values**: Negative numbers when computing modulo or division."
+        )
+    else:
+        reply = (
+            f"Hello! I am your **AI Coding Mentor**. I'm actively analyzing your **{lang_upper}** code.\n\n"
+            "Here are a few questions you can ask me:\n"
+            "- *'How can I optimize the time complexity of this code?'*\n"
+            "- *'Explain this algorithm step-by-step.'*\n"
+            "- *'What edge cases would fail this solution?'*\n"
+            "- *'Can you show me a cleaner refactored version?'*\n\n"
+            "What would you like to explore next?"
+        )
+
+    return ChatResponse(
+        success=True,
+        reply=reply,
+        model_used="AI Mentor (Local Heuristic Engine)",
+        is_demo_mode=True,
+        warning_message="Running in Demo Mode. Provide GEMINI_API_KEY in backend/.env for live conversational AI."
+    )
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_with_mentor(
+    request: ChatRequest,
+    x_gemini_api_key: Optional[str] = Header(None, alias="X-Gemini-API-Key")
+):
+    """
+    Conversational AI Mentor endpoint powered by Google Gemini (with smart local heuristic fallback).
+    Allows interactive questions, explanations, line-by-line breakdowns, and optimization ideas.
+    """
+    if not request.messages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chat history cannot be empty."
+        )
+
+    active_key = (
+        request.api_key
+        or x_gemini_api_key
+        or os.getenv("GEMINI_API_KEY")
+    )
+
+    is_dummy_key = not active_key or active_key.strip() in (
+        "",
+        "your_gemini_api_key_here",
+        "your_api_key_here",
+        "placeholder"
+    )
+
+    if is_dummy_key:
+        return generate_heuristic_chat(
+            messages=request.messages,
+            code=request.code,
+            language=request.language,
+            problem_context=request.problem_context
+        )
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=active_key.strip())
+
+        system_instruction = (
+            f"You are a friendly, world-class Senior Staff Software Engineer and Competitive Programming / DSA Mentor. "
+            f"The student is working in {request.language.upper()}.\n\n"
+            f"Here is the student's current code in their editor:\n"
+            f"```{request.language}\n{request.code}\n```\n"
+            + (f"\nProblem Description / Constraints:\n{request.problem_context}\n" if request.problem_context else "")
+            + "\nGuidelines:\n"
+            "- Provide encouraging, clear, and insightful guidance.\n"
+            "- Use clean markdown headings, bold text, and syntax-highlighted code snippets where helpful.\n"
+            "- When explaining algorithms or Big-O, give intuitive real-world analogies.\n"
+            "- Keep answers focused, practical, and directly tied to the student's code."
+        )
+
+        history_str = ""
+        for msg in request.messages[-8:]:
+            role_label = "Student" if msg.role == "user" else "Mentor"
+            history_str += f"{role_label}: {msg.content}\n\n"
+
+        prompt = f"Here is the conversation so far:\n{history_str}Please provide your helpful response as the Mentor:"
+
+        candidate_models = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]
+        reply_text = None
+        used_model = "gemini-flash-latest"
+        last_err = None
+
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.4,
+                    )
+                )
+                reply_text = response.text.strip()
+                used_model = model_name
+                break
+            except Exception as e:
+                last_err = e
+                continue
+
+        if not reply_text:
+            raise last_err or RuntimeError("No compatible Gemini model succeeded")
+
+        return ChatResponse(
+            success=True,
+            reply=reply_text,
+            model_used=used_model,
+            is_demo_mode=False
+        )
+
+    except Exception as e:
+        error_str = str(e)
+        print(f"Gemini chat mentor error: {error_str}")
+        fallback = generate_heuristic_chat(
+            messages=request.messages,
+            code=request.code,
+            language=request.language,
+            problem_context=request.problem_context
+        )
+        fallback.warning_message = f"Gemini API note ({error_str[:120]}). Displaying local mentor guidance."
+        return fallback
+
 

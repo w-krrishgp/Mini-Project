@@ -274,6 +274,8 @@ function App() {
             testCasesData={testCasesData}
             onGenerateTestCases={handleGenerateTestCases}
             isGeneratingTestCases={isGeneratingTestCases}
+            code={code}
+            apiKey={apiKey}
           />
         </section>
       </main>

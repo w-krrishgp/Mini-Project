@@ -85,3 +85,40 @@ export async function requestTestCases({ code, language, problemContext, apiKey 
     throw err;
   }
 }
+
+/**
+ * Sends a conversation message to the AI Mentor
+ */
+export async function sendChatMessage({ messages, code, language, problemContext, apiKey }) {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (apiKey && apiKey.trim()) {
+      headers['X-Gemini-API-Key'] = apiKey.trim();
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        messages,
+        code,
+        language,
+        problem_context: problemContext || '',
+        api_key: apiKey ? apiKey.trim() : null,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Server error: ${res.statusText} (${res.status})`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error('Chat mentor error:', err);
+    throw err;
+  }
+}
+

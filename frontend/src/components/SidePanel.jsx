@@ -8,10 +8,12 @@ import {
   ArrowRight, 
   BookOpen, 
   Loader2,
-  FlaskConical
+  FlaskConical,
+  Bot
 } from 'lucide-react';
 import ReviewResults from './ReviewResults';
 import TestCaseGenerator from './TestCaseGenerator';
+import ChatMentor from './ChatMentor';
 
 export default function SidePanel({
   selectedLanguage,
@@ -28,7 +30,9 @@ export default function SidePanel({
   onOpenDiff,
   testCasesData,
   onGenerateTestCases,
-  isGeneratingTestCases
+  isGeneratingTestCases,
+  code = '',
+  apiKey = ''
 }) {
   const [internalTab, setInternalTab] = useState('overview');
   const activeTab = propActiveTab || internalTab;
@@ -108,6 +112,14 @@ export default function SidePanel({
           {testCasesData && (
             <span className="tab-score-badge">{testCasesData.total_cases}</span>
           )}
+        </button>
+
+        <button 
+          className={`panel-tab ${activeTab === 'mentor' ? 'active' : ''}`}
+          onClick={() => setActiveTab('mentor')}
+        >
+          <Bot size={15} className={activeTab === 'mentor' ? "text-accent" : ""} />
+          <span>AI Mentor</span>
         </button>
 
         <button 
@@ -269,6 +281,20 @@ export default function SidePanel({
               onGenerateTestCases={onGenerateTestCases}
               isGenerating={isGeneratingTestCases}
               onOpenSettings={onOpenSettings}
+            />
+          </div>
+        )}
+
+        {/* AI Mentor Chat Tab */}
+        {activeTab === 'mentor' && (
+          <div className="chat-mentor-tab-content">
+            <ChatMentor
+              code={code}
+              language={selectedLanguage}
+              problemContext={problemDescription}
+              apiKey={apiKey}
+              onOpenSettings={onOpenSettings}
+              onApplyFix={onApplyFix}
             />
           </div>
         )}
