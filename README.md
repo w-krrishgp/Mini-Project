@@ -105,8 +105,33 @@ npm run dev
 1. Open `http://localhost:5173`.
 2. Click **"Load Buggy DSA Sample"** in the top navigation.
 3. Click **"Review My Code"** to trigger the Gemini review.
-4. Inspect issues and switch to **"Diff View"** to inspect side-by-side modifications.
-5. Click **"Apply AI Fix"** to merge the fix into the editor.
+4. Switch to **"Test Cases"** to view AI-generated boundary, edge, and scale test suites.
+5. Switch to **"AI Mentor"** to chat 1-on-1 about your code, ask questions, or request optimizations.
+6. Switch to **"Diff View"** to inspect side-by-side modifications.
+7. Click **"Apply AI Fix"** to merge the fix into the editor.
+
+---
+
+## 🌐 1-Click Free Cloud Deployment (Render)
+
+Deploy both the React frontend and FastAPI backend together on **Render.com** under a single free HTTPS URL:
+
+### Method A: Using Render Blueprint (Automatic)
+1. Sign in to [Render.com](https://dashboard.render.com).
+2. Click **New +** > **Blueprint**.
+3. Connect your GitHub repository: `https://github.com/w-krrishgp/Mini-Project`.
+4. Render detects [`render.yaml`](./render.yaml) automatically.
+5. In the prompt for `GEMINI_API_KEY`, enter your Google Gemini API key.
+6. Click **Apply**. Render will build and deploy your live web application!
+
+### Method B: Manual Web Service
+1. On Render, click **New +** > **Web Service**.
+2. Select your repository `w-krrishgp/Mini-Project`.
+3. Choose **Docker** as the Runtime.
+4. In **Environment Variables**, add:
+   * `GEMINI_API_KEY` = `your_gemini_api_key_here`
+   * `PORT` = `8000`
+5. Click **Create Web Service**. Your app is live at `https://<your-service-name>.onrender.com`!
 
 ---
 
@@ -117,3 +142,4 @@ npm run dev
 3. Commit your changes (`git commit -m 'Add amazing feature'`).
 4. Push to the branch (`git push origin feature/amazing-feature`).
 5. Open a Pull Request.
+

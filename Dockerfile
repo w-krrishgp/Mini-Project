@@ -1,0 +1,44 @@
+# ==========================================
+# Multi-Stage Dockerfile for AI Code Reviewer
+# Stage 1: Build React/Vite Frontend
+# ==========================================
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm install
+
+COPY frontend/ ./
+RUN npm run build
+
+# ==========================================
+# Stage 2: Python / FastAPI Production Server
+# ==========================================
+FROM python:3.12-slim AS runner
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY backend/requirements.txt ./backend/
+RUN pip install --no-cache-dir -r ./backend/requirements.txt
+
+# Copy Backend Code
+COPY backend/ ./backend/
+
+# Copy Built Frontend Distribution
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
+# Set Environment Variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
+WORKDIR /app/backend
+
+EXPOSE 8000
+
+# Start FastAPI Application
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

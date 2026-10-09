@@ -4,6 +4,8 @@ import json
 from typing import List, Optional
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -290,8 +292,25 @@ def generate_heuristic_review(code: str, language: str, problem_context: Optiona
     )
 
 
+# Production Frontend SPA Static Mount
+frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if not os.path.exists(frontend_dist_dir):
+    frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "dist"))
+
+if os.path.exists(frontend_dist_dir):
+    assets_dir = os.path.join(frontend_dist_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+
 @app.get("/")
-def read_root():
+def read_root(accept: Optional[str] = Header(None, alias="Accept")):
+    # When accessed from a web browser, serve the compiled React SPA
+    if os.path.exists(frontend_dist_dir) and accept and "text/html" in accept:
+        index_path = os.path.join(frontend_dist_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+
     return {
         "service": "AI Code Reviewer API",
         "version": "1.1.0",
@@ -966,5 +985,21 @@ async def chat_with_mentor(
         )
         fallback.warning_message = f"Gemini API note ({error_str[:120]}). Displaying local mentor guidance."
         return fallback
+
+
+if os.path.exists(frontend_dist_dir):
+    @app.get("/{full_path:path}")
+    async def serve_spa_client(full_path: str):
+        # Do not catch /api endpoints
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+        file_path = os.path.join(frontend_dist_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_path = os.path.join(frontend_dist_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Resource not found")
+
 
 
